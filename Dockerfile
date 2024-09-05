@@ -12,6 +12,10 @@ ENV LUAJIT_INC=/usr/include/luajit-2.1
 # resolves #166
 ENV LD_PRELOAD /usr/lib/preloadable_libiconv.so php
 RUN apk add --no-cache --repository http://dl-3.alpinelinux.org/alpine/edge/community gnu-libiconv
+#RUN echo /etc/apk/respositories && \
+#    apk update && apk upgrade &&\
+#    apk add --no-cache \
+#    gnu-libiconv
 
 # install locales
 ENV MUSL_LOCALE_DEPS cmake make musl-dev gcc gettext-dev libintl
@@ -38,8 +42,7 @@ RUN apk add --no-cache nginx \
     nginx-mod-http-lua \
     nginx-mod-devel-kit
 
-RUN echo @testing https://dl-cdn.alpinelinux.org/alpine/edge/testing >> /etc/apk/repositories && \
-    echo /etc/apk/respositories && \
+RUN echo /etc/apk/respositories && \
     apk update && apk upgrade &&\
     apk add --no-cache \
     bash \
@@ -63,6 +66,7 @@ RUN echo @testing https://dl-cdn.alpinelinux.org/alpine/edge/testing >> /etc/apk
     libjpeg-turbo-dev \
     freetype-dev \
     libxslt-dev \
+    certbot certbot-nginx \
     gcc 
 
 RUN apk add --no-cache --virtual .sys-deps \
@@ -88,7 +92,7 @@ RUN apk add --no-cache --virtual .sys-deps \
       --with-freetype \
       --with-jpeg && \
     docker-php-ext-install gd && \
-     pip install --upgrade pip && \
+  #   pip install --upgrade pip && \
     docker-php-ext-install pdo_mysql mysqli pdo_sqlite pgsql pdo_pgsql exif intl xsl soap zip && \
     pecl install -o -f xdebug && \
     pecl install -o -f redis && \ 
@@ -104,7 +108,7 @@ RUN apk add --no-cache --virtual .sys-deps \
     php composer-setup.php --quiet --install-dir=/usr/bin --filename=composer && \
     rm composer-setup.php &&\
   #  pip3 install -U pip && \
-    pip3 install -U certbot && \
+  #  pip3 install -U certbot && \
     mkdir -p /etc/letsencrypt/webrootauth && \
     apk del gcc musl-dev linux-headers libffi-dev augeas-dev python3-dev make autoconf && \
     apk del .sys-deps
