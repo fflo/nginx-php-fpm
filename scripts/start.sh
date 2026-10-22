@@ -107,11 +107,10 @@ else
  echo php_flag[display_errors] = on >> /usr/local/etc/php-fpm.d/www.conf
 fi
 
-# Display Version Details or not
+# Display Version Details or not (headers are hidden by default; expose_php=Off is set in docker-vars.ini)
 if [[ "$HIDE_NGINX_HEADERS" == "0" ]] ; then
  sed -i "s/server_tokens off;/server_tokens on;/g" /etc/nginx/nginx.conf
-else
- sed -i "s/expose_php = On/expose_php = Off/g" /usr/local/etc/php-fpm.conf
+ sed -i "s/^expose_php = Off/expose_php = On/" /usr/local/etc/php/conf.d/docker-vars.ini
 fi
 
 # Pass real-ip to logs when behind ELB, etc
@@ -144,17 +143,17 @@ fi
 
 # Increase the memory_limit
 if [ ! -z "$PHP_MEM_LIMIT" ]; then
- sed -i "s/memory_limit = 128M/memory_limit = ${PHP_MEM_LIMIT}M/g" /usr/local/etc/php/conf.d/docker-vars.ini
+ sed -i "s/^memory_limit = .*/memory_limit = ${PHP_MEM_LIMIT}M/" /usr/local/etc/php/conf.d/docker-vars.ini
 fi
 
 # Increase the post_max_size
 if [ ! -z "$PHP_POST_MAX_SIZE" ]; then
- sed -i "s/post_max_size = 100M/post_max_size = ${PHP_POST_MAX_SIZE}M/g" /usr/local/etc/php/conf.d/docker-vars.ini
+ sed -i "s/^post_max_size = .*/post_max_size = ${PHP_POST_MAX_SIZE}M/" /usr/local/etc/php/conf.d/docker-vars.ini
 fi
 
 # Increase the upload_max_filesize
 if [ ! -z "$PHP_UPLOAD_MAX_FILESIZE" ]; then
- sed -i "s/upload_max_filesize = 100M/upload_max_filesize= ${PHP_UPLOAD_MAX_FILESIZE}M/g" /usr/local/etc/php/conf.d/docker-vars.ini
+ sed -i "s/^upload_max_filesize = .*/upload_max_filesize = ${PHP_UPLOAD_MAX_FILESIZE}M/" /usr/local/etc/php/conf.d/docker-vars.ini
 fi
 
 # Enable xdebug

@@ -13,10 +13,23 @@ We will use the [semver](http://ricostacruz.com/cheatsheets/semver.html) style n
 
 The latest tag will always follow the main branch in git. the other versions will have releases attached.
 
-#### PHP 8.2.x
- 
+#### PHP 8.4.x (Dockerfile / Dockerfile_84)
+
 | Docker Tag | PHP Version | Nginx Version | Alpine Version | Container Scripts | Notes |
 |-----|-------|-----|--------|--------|----------|
+| main | 8.4.27 | 1.30.6 | 3.24 | 0.3.18 | security release: CVE-2026-109618, CVE-2026-109619 (PHP2Shell); xdebug no longer loaded by default; php.ini-production |
+
+#### PHP 8.3.x (Dockerfile_83)
+
+| Docker Tag | PHP Version | Nginx Version | Alpine Version | Container Scripts | Notes |
+|-----|-------|-----|--------|--------|----------|
+| main | 8.3.36 | 1.30.6 | 3.24 | 0.3.18 | security release: CVE-2026-109618, CVE-2026-109619 |
+
+#### PHP 8.2.x (Dockerfile_82)
+
+| Docker Tag | PHP Version | Nginx Version | Alpine Version | Container Scripts | Notes |
+|-----|-------|-----|--------|--------|----------|
+| main | 8.2.35 | 1.30.6 | 3.24 | 0.3.18 | security release: CVE-2026-109618, CVE-2026-109619 |
 | 3.1.6 | 8.2.7 |1.24-r6 | 3.18 | 0.3.17 | upgrade to php 8.2.5 |
 | 3.1.5 | 8.2.6 |1.24-r6 | 3.18 | 0.3.17 | upgrade to php 8.2.6 |
 | 3.1.4 | 8.2.5 |1.22.1 | 3.17 | 0.3.17 | upgrade to php 8.2.5 |

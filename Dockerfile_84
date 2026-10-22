@@ -1,4 +1,4 @@
-FROM php:8.4.1-fpm-alpine3.21
+FROM php:8.4.27-fpm-alpine3.24
 
 LABEL maintainer="Ric Harvey <ric@squarecows.com>"
 
@@ -11,7 +11,7 @@ ENV LUAJIT_INC=/usr/include/luajit-2.1
 
 # resolves #166
 ENV LD_PRELOAD /usr/lib/preloadable_libiconv.so php
-RUN apk add --no-cache --repository http://dl-3.alpinelinux.org/alpine/edge/community gnu-libiconv
+RUN apk add --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/edge/community gnu-libiconv
 #RUN echo /etc/apk/respositories && \
 #    apk update && apk upgrade &&\
 #    apk add --no-cache \
@@ -29,10 +29,7 @@ RUN apk add --no-cache \
       && cmake -DLOCALE_PROFILE=OFF -D CMAKE_INSTALL_PREFIX:PATH=/usr . && make && make install \
       && cd .. && rm -r musl-locales-master
 
-# install composer
 RUN apk add --no-cache bash curl
-RUN curl -s https://getcomposer.org/installer | php
-RUN alias composer='php composer.phar'
 
 # install git
 RUN apk add --no-cache git
@@ -99,12 +96,14 @@ RUN apk add --no-cache --virtual .sys-deps \
     pecl install -o -f mongodb && \
     echo "extension=redis.so" > /usr/local/etc/php/conf.d/redis.ini && \
     echo "extension=mongodb.so" > /usr/local/etc/php/conf.d/mongodb.ini && \
-    echo "zend_extension=xdebug" > /usr/local/etc/php/conf.d/xdebug.ini && \
+  # xdebug is installed but NOT enabled by default; start.sh enables it when ENABLE_XDEBUG=1
     docker-php-source delete && \
     mkdir -p /var/www/app && \
   # Install composer and certbot
     mkdir -p /var/log/supervisor && \
     php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" && \
+    EXPECTED_SIG="$(curl -fsSL https://composer.github.io/installer.sig)" && \
+    php -r "if (hash_file('sha384', 'composer-setup.php') !== '${EXPECTED_SIG}') { fwrite(STDERR, 'ERROR: Invalid composer installer checksum' . PHP_EOL); unlink('composer-setup.php'); exit(1); }" && \
     php composer-setup.php --quiet --install-dir=/usr/bin --filename=composer && \
     rm composer-setup.php &&\
   #  pip3 install -U pip && \
@@ -135,6 +134,9 @@ RUN echo "cgi.fix_pathinfo=0" > ${php_vars} &&\
     echo "post_max_size = 128M"  >> ${php_vars} &&\
     echo "variables_order = \"EGPCS\""  >> ${php_vars} && \
     echo "memory_limit = 256M"  >> ${php_vars} && \
+    echo "expose_php = Off"  >> ${php_vars} && \
+  # defence in depth for CVE-2026-109619 (stale upload-progress state); the real fix is the patched PHP release above
+    echo "session.upload_progress.enabled = 0"  >> ${php_vars} && \
     sed -i \
         -e "s/;catch_workers_output\s*=\s*yes/catch_workers_output = yes/g" \
         -e "s/pm.max_children = 5/pm.max_children = 4/g" \
@@ -151,7 +153,7 @@ RUN echo "cgi.fix_pathinfo=0" > ${php_vars} &&\
         -e "s/^;clear_env = no$/clear_env = no/" \
         ${fpm_conf}
 #    ln -s /etc/php7/php.ini /etc/php7/conf.d/php.ini && \
-RUN cp /usr/local/etc/php/php.ini-development /usr/local/etc/php/php.ini && \
+RUN cp /usr/local/etc/php/php.ini-production /usr/local/etc/php/php.ini && \
 	sed -i \
 	    -e "s/;opcache/opcache/g" \
 	    -e "s/;zend_extension=opcache/zend_extension=opcache/g" \
