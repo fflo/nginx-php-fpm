@@ -2,24 +2,20 @@ FROM php:8.3.36-fpm-alpine3.24
 
 LABEL maintainer="Ric Harvey <ric@squarecows.com>"
 
-ENV php_conf /usr/local/etc/php-fpm.conf
-ENV fpm_conf /usr/local/etc/php-fpm.d/www.conf
-ENV php_vars /usr/local/etc/php/conf.d/docker-vars.ini
+ENV php_conf="/usr/local/etc/php-fpm.conf"
+ENV fpm_conf="/usr/local/etc/php-fpm.d/www.conf"
+ENV php_vars="/usr/local/etc/php/conf.d/docker-vars.ini"
 
 ENV LUAJIT_LIB=/usr/lib
 ENV LUAJIT_INC=/usr/include/luajit-2.1
 
-# resolves #166
-ENV LD_PRELOAD /usr/lib/preloadable_libiconv.so php
+# GNU iconv instead of musl's (resolves #166)
+ENV LD_PRELOAD="/usr/lib/preloadable_libiconv.so php"
 RUN apk add --no-cache --repository https://dl-cdn.alpinelinux.org/alpine/edge/community gnu-libiconv
-#RUN echo /etc/apk/respositories && \
-#    apk update && apk upgrade &&\
-#    apk add --no-cache \
-#    gnu-libiconv
 
-# install locales
-ENV MUSL_LOCALE_DEPS cmake make musl-dev gcc gettext-dev libintl
-ENV MUSL_LOCPATH /usr/share/i18n/locales/musl
+# musl locales
+ENV MUSL_LOCALE_DEPS="cmake make musl-dev gcc gettext-dev libintl"
+ENV MUSL_LOCPATH="/usr/share/i18n/locales/musl"
 
 RUN apk add --no-cache \
     $MUSL_LOCALE_DEPS \
@@ -29,19 +25,13 @@ RUN apk add --no-cache \
       && cmake -DLOCALE_PROFILE=OFF -D CMAKE_INSTALL_PREFIX:PATH=/usr . && make && make install \
       && cd .. && rm -r musl-locales-master
 
-RUN apk add --no-cache bash curl
-
-# install git
-RUN apk add --no-cache git
-
-# INstall nginx + lua and devel kit
-RUN apk add --no-cache nginx \
-    nginx-mod-http-lua \
-    nginx-mod-devel-kit
-
-RUN echo /etc/apk/respositories && \
-    apk update && apk upgrade &&\
+# nginx (+ lua / devel kit modules), supervisor, certbot, git and the
+# runtime libraries + headers needed by the PHP extensions below
+RUN apk update && apk upgrade && \
     apk add --no-cache \
+    nginx \
+    nginx-mod-http-lua \
+    nginx-mod-devel-kit \
     bash \
     openssh-client \
     wget \
@@ -83,13 +73,11 @@ RUN apk add --no-cache --virtual .sys-deps \
     libxpm-dev \
     libpng \
     libpng-dev && \
-  # Install PHP modules
     docker-php-ext-configure gd \
       --enable-gd \
       --with-freetype \
       --with-jpeg && \
     docker-php-ext-install gd && \
-  #   pip install --upgrade pip && \
     docker-php-ext-install pdo_mysql mysqli pdo_sqlite pgsql pdo_pgsql exif intl xsl soap zip && \
     pecl install -o -f xdebug && \
     pecl install -o -f redis && \ 
@@ -98,25 +86,20 @@ RUN apk add --no-cache --virtual .sys-deps \
     echo "extension=mongodb.so" > /usr/local/etc/php/conf.d/mongodb.ini && \
   # xdebug is installed but NOT enabled by default; start.sh enables it when ENABLE_XDEBUG=1
     docker-php-source delete && \
-    mkdir -p /var/www/app && \
-  # Install composer and certbot
-    mkdir -p /var/log/supervisor && \
+    mkdir -p /var/www/app /var/log/supervisor /etc/letsencrypt/webrootauth && \
+  # composer, with the installer verified against the published sha384
     php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" && \
     EXPECTED_SIG="$(curl -fsSL https://composer.github.io/installer.sig)" && \
     php -r "if (hash_file('sha384', 'composer-setup.php') !== '${EXPECTED_SIG}') { fwrite(STDERR, 'ERROR: Invalid composer installer checksum' . PHP_EOL); unlink('composer-setup.php'); exit(1); }" && \
     php composer-setup.php --quiet --install-dir=/usr/bin --filename=composer && \
-    rm composer-setup.php &&\
-  #  pip3 install -U pip && \
-  #  pip3 install -U certbot && \
-    mkdir -p /etc/letsencrypt/webrootauth && \
+    rm composer-setup.php && \
     apk del gcc musl-dev linux-headers libffi-dev augeas-dev python3-dev make autoconf && \
     apk del .sys-deps
 
-ADD conf/supervisord.conf /etc/supervisord.conf
+COPY conf/supervisord.conf /etc/supervisord.conf
 
-# Copy our nginx config
-RUN rm -Rf /etc/nginx/nginx.conf
-ADD conf/nginx.conf /etc/nginx/nginx.conf
+# nginx config
+COPY conf/nginx.conf /etc/nginx/nginx.conf
 
 # nginx site conf
 RUN mkdir -p /etc/nginx/sites-available/ && \
@@ -124,8 +107,8 @@ mkdir -p /etc/nginx/sites-enabled/ && \
 mkdir -p /etc/nginx/ssl/ && \
 rm -Rf /var/www/* && \
 mkdir /var/www/html/
-ADD conf/nginx-site.conf /etc/nginx/sites-available/default.conf
-ADD conf/nginx-site-ssl.conf /etc/nginx/sites-available/default-ssl.conf
+COPY conf/nginx-site.conf /etc/nginx/sites-available/default.conf
+COPY conf/nginx-site-ssl.conf /etc/nginx/sites-available/default-ssl.conf
 RUN ln -s /etc/nginx/sites-available/default.conf /etc/nginx/sites-enabled/default.conf
 
 # tweak php-fpm config
@@ -149,29 +132,25 @@ RUN echo "cgi.fix_pathinfo=0" > ${php_vars} &&\
         -e "s/;listen.mode = 0660/listen.mode = 0666/g" \
         -e "s/;listen.owner = www-data/listen.owner = nginx/g" \
         -e "s/;listen.group = www-data/listen.group = nginx/g" \
-        -e "s/listen = 127.0.0.1:9000/listen = \/var\/run\/php-fpm.sock/g" \
+        -e "s/^;*listen = 127.0.0.1:9000/listen = \/var\/run\/php-fpm.sock/" \
         -e "s/^;clear_env = no$/clear_env = no/" \
         ${fpm_conf}
-#    ln -s /etc/php7/php.ini /etc/php7/conf.d/php.ini && \
+
+# opcache is already enabled by the official image via conf.d/docker-php-ext-opcache.ini;
+# only uncomment the opcache.* settings here, don't load the extension a second time
 RUN cp /usr/local/etc/php/php.ini-production /usr/local/etc/php/php.ini && \
 	sed -i \
-	    -e "s/;opcache/opcache/g" \
-	    -e "s/;zend_extension=opcache/zend_extension=opcache/g" \
+	    -e "s/^;opcache\./opcache./g" \
             /usr/local/etc/php/php.ini
 
 
-# Add Scripts
-ADD scripts/start.sh /start.sh
-ADD scripts/pull /usr/bin/pull
-ADD scripts/push /usr/bin/push
-ADD scripts/letsencrypt-setup /usr/bin/letsencrypt-setup
-ADD scripts/letsencrypt-renew /usr/bin/letsencrypt-renew
-RUN chmod 755 /usr/bin/pull && chmod 755 /usr/bin/push && chmod 755 /usr/bin/letsencrypt-setup && chmod 755 /usr/bin/letsencrypt-renew && chmod 755 /start.sh
+# container scripts
+COPY --chmod=755 scripts/start.sh /start.sh
+COPY --chmod=755 scripts/pull scripts/push scripts/letsencrypt-setup scripts/letsencrypt-renew /usr/bin/
 
-# copy in code
-ADD src/ /var/www/html/
-ADD errors/ /var/www/errors
-
+# default site + error pages
+COPY src/ /var/www/html/
+COPY errors/ /var/www/errors
 
 EXPOSE 443 80
 

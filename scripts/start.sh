@@ -29,9 +29,10 @@ if [ ! -z "$PHP_CATCHALL" ]; then
  sed -i 's#try_files $uri $uri/ =404;#try_files $uri $uri/ /index.php?$args;#g' /etc/nginx/sites-available/default.conf
 fi
 
-# Disable opcache
+# Disable opcache (enabled by default via conf.d/docker-php-ext-opcache.ini)
 if [ ! -z "$OPcache" ]; then
- sed -i 's#zend_extension=opcache#;zend_extension=opcache#g' /usr/local/etc/php/php.ini
+ rm -f /usr/local/etc/php/conf.d/docker-php-ext-opcache.ini
+ sed -i 's#^zend_extension=opcache#;zend_extension=opcache#g' /usr/local/etc/php/php.ini
 fi
 
 # Setup git variables
@@ -75,7 +76,7 @@ if [ ! -d "/var/www/html/.git" ]; then
      git checkout ${GIT_COMMIT} || exit 1
    fi
    if [ -z "$SKIP_CHOWN" ]; then
-     chown -Rf nginx.nginx /var/www/html
+     chown -Rf nginx:nginx /var/www/html
    fi
  fi
 fi
@@ -113,23 +114,24 @@ if [[ "$HIDE_NGINX_HEADERS" == "0" ]] ; then
  sed -i "s/^expose_php = Off/expose_php = On/" /usr/local/etc/php/conf.d/docker-vars.ini
 fi
 
-# Pass real-ip to logs when behind ELB, etc
+# Behind a reverse proxy / load balancer: trust X-Forwarded-For and X-Forwarded-Proto
+# from the CIDR(s) in REAL_IP_FROM (space or comma separated, default 172.16.0.0/12)
 if [[ "$REAL_IP_HEADER" == "1" ]] ; then
- sed -i "s/#real_ip_header X-Forwarded-For;/real_ip_header X-Forwarded-For;/" /etc/nginx/sites-available/default.conf
- sed -i "s/#set_real_ip_from/set_real_ip_from/" /etc/nginx/sites-available/default.conf
- if [ ! -z "$REAL_IP_FROM" ]; then
-  sed -i "s#172.16.0.0/12#$REAL_IP_FROM#" /etc/nginx/sites-available/default.conf
- fi
-fi
-# Do the same for SSL sites
-if [ -f /etc/nginx/sites-available/default-ssl.conf ]; then
- if [[ "$REAL_IP_HEADER" == "1" ]] ; then
-  sed -i "s/#real_ip_header X-Forwarded-For;/real_ip_header X-Forwarded-For;/" /etc/nginx/sites-available/default-ssl.conf
-  sed -i "s/#set_real_ip_from/set_real_ip_from/" /etc/nginx/sites-available/default-ssl.conf
+ for site in /etc/nginx/sites-available/default.conf /etc/nginx/sites-available/default-ssl.conf; do
+  [ -f "$site" ] || continue
+  sed -i "s/#real_ip_header X-Forwarded-For;/real_ip_header X-Forwarded-For;\n\treal_ip_recursive on;/" "$site"
   if [ ! -z "$REAL_IP_FROM" ]; then
-   sed -i "s#172.16.0.0/12#$REAL_IP_FROM#" /etc/nginx/sites-available/default-ssl.conf
+   lines=""
+   for cidr in ${REAL_IP_FROM//,/ }; do
+    lines="${lines}set_real_ip_from ${cidr};\n\t"
+   done
+   sed -i "s|#set_real_ip_from 172.16.0.0/12;|${lines%\\n\\t}|" "$site"
+  else
+   sed -i "s/#set_real_ip_from/set_real_ip_from/" "$site"
   fi
- fi
+ done
+ # let PHP see HTTPS=on when the proxy terminated TLS
+ sed -i "s/#XFP //" /etc/nginx/nginx.conf
 fi
 
 # Set the desired timezone
@@ -199,7 +201,7 @@ if [ ! -z "$PUID" ]; then
   adduser -D -S -h /var/cache/nginx -s /sbin/nologin -G nginx -u ${PUID} nginx
 else
   if [ -z "$SKIP_CHOWN" ]; then
-    chown -Rf nginx.nginx /var/www/html
+    chown -Rf nginx:nginx /var/www/html
   fi
 fi
 

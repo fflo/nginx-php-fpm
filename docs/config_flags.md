@@ -30,8 +30,8 @@ The following flags are a list of all the currently supported options that can b
 | PHP_UPLOAD_MAX_FILESIZE | Set a larger upload_max_filesize, default is 100 Mb                                                            |
 | PHP_ERRORS_STDERR       | Send php logs to docker logs                                                                                   |
 | DOMAIN                  | Set domain name for Lets Encrypt scripts                                                                       |
-| REAL_IP_HEADER          | set to 1 to enable real ip support in the logs                                                                 |
-| REAL_IP_FROM            | set to your CIDR block for real ip in logs                                                                     |
+| REAL_IP_HEADER          | set to 1 when running behind a reverse proxy: trust X-Forwarded-For (real client IP) and X-Forwarded-Proto (HTTPS detection) from REAL_IP_FROM |
+| REAL_IP_FROM            | CIDR block(s) of your proxies, space or comma separated (default 172.16.0.0/12)                                 |
 | RUN_SCRIPTS             | Set to 1 to execute scripts                                                                                    |
 | SCRIPTS_DIR             | Change default scripts dir from `/var/www/html/scripts` to your own setting                                    |
 | PGID                    | Set to GroupId you want to use for nginx (helps permissions when using local volume)                           |
